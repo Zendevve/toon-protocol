@@ -17,6 +17,7 @@ const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('toon');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState<boolean>(false);
+  const [headerCopyStatus, setHeaderCopyStatus] = useState<'idle' | 'copied'>('idle');
 
   const handleGenerate = useCallback(async () => {
     if (!prompt.trim()) return;
@@ -59,6 +60,13 @@ const App: React.FC = () => {
     }
   }, [prompt]);
 
+  const handleHeaderCopy = () => {
+    if (!toonString) return;
+    navigator.clipboard.writeText(toonString);
+    setHeaderCopyStatus('copied');
+    setTimeout(() => setHeaderCopyStatus('idle'), 2000);
+  };
+
   return (
     <div className="h-screen w-full bg-black flex flex-col overflow-hidden selection:bg-white selection:text-black">
       
@@ -69,6 +77,16 @@ const App: React.FC = () => {
           <h1 className="font-bold text-lg tracking-tighter text-white">TOON<span className="text-zinc-600 font-light">PROTOCOL</span></h1>
         </div>
         <div className="flex items-center gap-6 text-[10px] font-mono uppercase text-zinc-500 tracking-widest">
+          
+          {status === 'success' && toonString && (
+             <button 
+               onClick={handleHeaderCopy}
+               className={`hidden sm:flex items-center gap-2 transition-colors ${headerCopyStatus === 'copied' ? 'text-green-500' : 'hover:text-white'}`}
+             >
+               [{headerCopyStatus === 'copied' ? 'COPIED' : 'COPY TOON'}]
+             </button>
+          )}
+
           <span className={status === 'loading' ? 'text-white animate-pulse' : ''}>
             SYSTEM: {status === 'loading' ? 'COMPILING...' : 'READY'}
           </span>
