@@ -18,6 +18,7 @@ const App: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState<boolean>(false);
   const [headerCopyStatus, setHeaderCopyStatus] = useState<'idle' | 'copied'>('idle');
+  const [jsonCopyStatus, setJsonCopyStatus] = useState<'idle' | 'copied'>('idle');
 
   const handleGenerate = useCallback(async () => {
     if (!prompt.trim()) return;
@@ -67,6 +68,24 @@ const App: React.FC = () => {
     setTimeout(() => setHeaderCopyStatus('idle'), 2000);
   };
 
+  const handleJsonCopy = () => {
+    if (!jsonString) return;
+    navigator.clipboard.writeText(jsonString);
+    setJsonCopyStatus('copied');
+    setTimeout(() => setJsonCopyStatus('idle'), 2000);
+  };
+
+  const handleClear = () => {
+    setPrompt("");
+    setStatus('idle');
+    setJsonData(null);
+    setJsonString("");
+    setToonString("");
+    setStats(null);
+    setErrorMsg(null);
+    setIsVerified(false);
+  };
+
   return (
     <div className="h-screen w-full bg-black flex flex-col overflow-hidden selection:bg-white selection:text-black">
       
@@ -78,13 +97,25 @@ const App: React.FC = () => {
         </div>
         <div className="flex items-center gap-6 text-[10px] font-mono uppercase text-zinc-500 tracking-widest">
           
-          {status === 'success' && toonString && (
-             <button 
-               onClick={handleHeaderCopy}
-               className={`hidden sm:flex items-center gap-2 transition-colors ${headerCopyStatus === 'copied' ? 'text-green-500' : 'hover:text-white'}`}
-             >
-               [{headerCopyStatus === 'copied' ? 'COPIED' : 'COPY TOON'}]
-             </button>
+          {status === 'success' && (
+             <>
+               {jsonString && (
+                 <button 
+                   onClick={handleJsonCopy}
+                   className={`hidden sm:flex items-center gap-2 transition-colors ${jsonCopyStatus === 'copied' ? 'text-green-500' : 'hover:text-white'}`}
+                 >
+                   [{jsonCopyStatus === 'copied' ? 'COPIED' : 'COPY JSON'}]
+                 </button>
+               )}
+               {toonString && (
+                 <button 
+                   onClick={handleHeaderCopy}
+                   className={`hidden sm:flex items-center gap-2 transition-colors ${headerCopyStatus === 'copied' ? 'text-green-500' : 'hover:text-white'}`}
+                 >
+                   [{headerCopyStatus === 'copied' ? 'COPIED' : 'COPY TOON'}]
+                 </button>
+               )}
+             </>
           )}
 
           <span className={status === 'loading' ? 'text-white animate-pulse' : ''}>
@@ -103,6 +134,12 @@ const App: React.FC = () => {
           <div className="flex-grow flex flex-col">
              <div className="flex-none p-4 border-b border-zinc-900 flex justify-between items-end">
                 <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">Input Matrix</span>
+                <button 
+                  onClick={handleClear}
+                  className="text-[10px] font-mono uppercase tracking-widest text-zinc-700 hover:text-red-500 transition-colors"
+                >
+                  [CLEAR]
+                </button>
              </div>
              <textarea
                value={prompt}
