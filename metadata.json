@@ -1,0 +1,5 @@
+{
+  "name": "TOON Protocol",
+  "description": "Token-Oriented Object Notation (TOON) generator for LLM efficiency. Convert natural language or JSON to token-optimized formats.",
+  "requestFramePermissions": []
+}
