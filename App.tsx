@@ -3,7 +3,7 @@ import { generateDataFromPrompt } from './services/geminiService';
 import { GenerationStatus, TokenStats, ViewMode } from './types';
 import { CodeBlock } from './components/CodeBlock';
 import { ToonPreview } from './components/ToonPreview';
-import { convertToToon, calculateTokenStats } from './utils/toonEncoder';
+import { convertToToon, calculateTokenStats, decodeToon } from './utils/toonEncoder';
 
 const EXAMPLE_PROMPT = "A dataset of 20 spaceships with stats like speed, shield capacity, crew size, and captain name.";
 
@@ -16,22 +16,40 @@ const App: React.FC = () => {
   const [stats, setStats] = useState<TokenStats | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('toon');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isVerified, setIsVerified] = useState<boolean>(false);
 
   const handleGenerate = useCallback(async () => {
     if (!prompt.trim()) return;
     
     setStatus('loading');
     setErrorMsg(null);
+    setIsVerified(false);
     
     try {
       const data = await generateDataFromPrompt(prompt);
       const jsonStr = JSON.stringify(data, null, 2);
       const toonStr = convertToToon(data);
       
+      // Verify Integrity
+      let verified = false;
+      try {
+        const decoded = decodeToon(toonStr);
+        // Simple equality check (for demo purposes, strict equality might fail on key order but JSON structure should match)
+        // We normalize by stringifying both
+        if (JSON.stringify(decoded) === JSON.stringify(data)) {
+            verified = true;
+        } else {
+            console.warn("Verification Mismatch", { original: data, decoded });
+        }
+      } catch (e) {
+        console.error("Verification Error", e);
+      }
+
       setJsonData(data);
       setJsonString(jsonStr);
       setToonString(toonStr);
       setStats(calculateTokenStats(jsonStr, toonStr));
+      setIsVerified(verified);
       setStatus('success');
       setViewMode('toon'); 
     } catch (err) {
@@ -118,6 +136,14 @@ const App: React.FC = () => {
                        <div className="text-[9px] text-white uppercase mb-1">TOON Format</div>
                        <div className="text-lg font-bold text-white">{stats.estimatedTokensToon.toLocaleString()} <span className="text-[9px]">tok</span></div>
                      </div>
+                  </div>
+                  
+                  {/* Integrity Badge */}
+                  <div className={`mt-4 border ${isVerified ? 'border-green-900 bg-green-950/10 text-green-600' : 'border-yellow-900 bg-yellow-950/10 text-yellow-600'} p-2 flex items-center justify-center gap-2`}>
+                      <div className={`w-1.5 h-1.5 ${isVerified ? 'bg-green-500' : 'bg-yellow-500'} rounded-full`}></div>
+                      <span className="text-[9px] font-mono uppercase tracking-widest">
+                        {isVerified ? 'Integrity Verified' : 'Integrity Check Failed'}
+                      </span>
                   </div>
                 </div>
              )}
