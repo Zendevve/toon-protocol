@@ -161,7 +161,7 @@ export class ToonDecoder {
     return this.root;
   }
 
-  private processLine(line: string) {
+  public processLine(line: string) {
     const indentMatch = line.match(/^(\s*)/);
     const indent = indentMatch ? indentMatch[1].length : 0;
     const content = line.trim();
@@ -255,10 +255,7 @@ export class ToonDecoder {
 
     // 5. List Item (Simple support)
     if (content.startsWith('- ')) {
-      // Lists are complex in TOON mixed mode, simplistic handling:
-      // If we are in an object and see a list item, it might be a list property?
-      // Not fully implemented for complex mixed lists in this basic decoder.
-      // But primitive lists are handled via [N]: syntax by encoder.
+      // Lists are complex in TOON mixed mode, simplistic handling for now
     }
   }
 
@@ -273,6 +270,41 @@ export class ToonDecoder {
             parent.container[key] = val;
         }
     }
+  }
+}
+
+export class ToonStreamDecoder {
+  private decoder: ToonDecoder;
+  private buffer: string;
+
+  constructor() {
+    this.decoder = new ToonDecoder();
+    this.buffer = '';
+  }
+
+  push(chunk: string) {
+    this.buffer += chunk;
+    if (this.buffer.indexOf('\n') === -1) return;
+
+    const lines = this.buffer.split('\n');
+    this.buffer = lines.pop() || ''; // Keep last incomplete line
+
+    for (const line of lines) {
+        if (line.trim()) {
+            this.decoder.processLine(line);
+        }
+    }
+  }
+
+  end() {
+    if (this.buffer.trim()) {
+        this.decoder.processLine(this.buffer);
+    }
+    this.buffer = '';
+  }
+
+  get result() {
+      return this.decoder.root;
   }
 }
 

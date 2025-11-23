@@ -3,7 +3,7 @@ import { generateDataFromPrompt } from './services/geminiService';
 import { GenerationStatus, TokenStats, ViewMode } from './types';
 import { CodeBlock } from './components/CodeBlock';
 import { ToonPreview } from './components/ToonPreview';
-import { convertToToon, calculateTokenStats, decodeToon } from './utils/toonEncoder';
+import { convertToToon, calculateTokenStats, decodeToon, ToonStreamDecoder } from './utils/toonEncoder';
 
 const EXAMPLE_PROMPT = "A dataset of 20 spaceships with stats like speed, shield capacity, crew size, and captain name.";
 
@@ -47,12 +47,19 @@ const App: React.FC = () => {
       const jsonStr = JSON.stringify(data, null, 2);
       const toonStr = convertToToon(data);
       
-      // Verify Integrity
+      // Verify Integrity using Stream Decoder to simulate streaming behavior
       let verified = false;
       try {
-        const decoded = decodeToon(toonStr);
-        // Simple equality check (for demo purposes, strict equality might fail on key order but JSON structure should match)
-        // We normalize by stringifying both
+        const streamDecoder = new ToonStreamDecoder();
+        // Simulate chunks of 100 chars
+        const chunkSize = 100;
+        for (let i = 0; i < toonStr.length; i += chunkSize) {
+            streamDecoder.push(toonStr.slice(i, i + chunkSize));
+        }
+        streamDecoder.end();
+        const decoded = streamDecoder.result;
+        
+        // Simple equality check
         if (JSON.stringify(decoded) === JSON.stringify(data)) {
             verified = true;
         } else {
