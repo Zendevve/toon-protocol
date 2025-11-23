@@ -48,6 +48,7 @@ interface DataNodeProps {
 
 const DataNode: React.FC<DataNodeProps> = ({ data, label, depth, searchTerm, expandAction }) => {
   const [expanded, setExpanded] = useState(depth < 1);
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
 
   // Type Detection
   const isArray = Array.isArray(data);
@@ -85,6 +86,15 @@ const DataNode: React.FC<DataNodeProps> = ({ data, label, depth, searchTerm, exp
     setExpanded(!expanded);
   };
 
+  const handleSort = (key: string) => {
+    setSortConfig(current => {
+      if (current?.key === key && current.direction === 'asc') {
+        return { key, direction: 'desc' };
+      }
+      return { key, direction: 'asc' };
+    });
+  };
+
   if (depth > 50) return <div className="text-red-500 text-[10px] pl-4 border-l border-red-900">Max Depth Exceeded</div>;
 
   // Styling for tree lines
@@ -93,10 +103,34 @@ const DataNode: React.FC<DataNodeProps> = ({ data, label, depth, searchTerm, exp
 
   // --- RENDER: Uniform Table ---
   if (isUniform) {
-    const filteredData = searchTerm 
+    const filteredData = useMemo(() => {
+        return searchTerm 
         ? data.filter((row: any) => Object.values(row).some(v => String(v).toLowerCase().includes(searchTerm.toLowerCase())))
         : data;
+    }, [data, searchTerm]);
     
+    const sortedData = useMemo(() => {
+        if (!sortConfig) return filteredData;
+        return [...filteredData].sort((a: any, b: any) => {
+            const valA = a[sortConfig.key];
+            const valB = b[sortConfig.key];
+            
+            if (valA === valB) return 0;
+            if (valA === null || valA === undefined) return 1;
+            if (valB === null || valB === undefined) return -1;
+            
+            if (typeof valA === 'number' && typeof valB === 'number') {
+                return sortConfig.direction === 'asc' ? valA - valB : valB - valA;
+            }
+            
+            const strA = String(valA).toLowerCase();
+            const strB = String(valB).toLowerCase();
+            if (strA < strB) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (strA > strB) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }, [filteredData, sortConfig]);
+
     if (searchTerm && filteredData.length === 0 && !selfMatch) return null;
 
     const keys = Object.keys(data[0]);
@@ -133,14 +167,27 @@ const DataNode: React.FC<DataNodeProps> = ({ data, label, depth, searchTerm, exp
                             <tr>
                                 <th className="px-2 py-1 text-[9px] font-mono text-zinc-500 border-b border-zinc-800 bg-zinc-900/50">#</th>
                                 {keys.map(k => (
-                                    <th key={k} className="px-2 py-1 text-[9px] font-mono text-zinc-400 border-b border-l border-zinc-800 bg-zinc-900/50 whitespace-nowrap">
-                                        <Highlight text={k} term={searchTerm} />
+                                    <th 
+                                        key={k} 
+                                        onClick={() => handleSort(k)}
+                                        className={`px-2 py-1 text-[9px] font-mono border-b border-l border-zinc-800 bg-zinc-900/50 whitespace-nowrap cursor-pointer select-none transition-colors hover:bg-zinc-800 hover:text-zinc-200
+                                            ${sortConfig?.key === k ? 'text-zinc-200 bg-zinc-800/50' : 'text-zinc-400'}
+                                        `}
+                                    >
+                                        <div className="flex items-center gap-1">
+                                            <Highlight text={k} term={searchTerm} />
+                                            {sortConfig?.key === k && (
+                                                <span className="text-[8px] text-cyan-500">
+                                                    {sortConfig.direction === 'asc' ? '▲' : '▼'}
+                                                </span>
+                                            )}
+                                        </div>
                                     </th>
                                 ))}
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredData.slice(0, 100).map((row: any, idx: number) => (
+                            {sortedData.slice(0, 100).map((row: any, idx: number) => (
                                 <tr key={idx} className="hover:bg-zinc-900/30 transition-colors group/row">
                                     <td className="px-2 py-0.5 text-[10px] font-mono text-zinc-600 border-b border-zinc-800/30">{idx}</td>
                                     {keys.map(k => (
@@ -152,9 +199,9 @@ const DataNode: React.FC<DataNodeProps> = ({ data, label, depth, searchTerm, exp
                             ))}
                         </tbody>
                     </table>
-                    {filteredData.length > 100 && (
+                    {sortedData.length > 100 && (
                         <div className="px-2 py-1 text-[9px] text-zinc-600 italic text-center bg-zinc-900/20">
-                            ... {filteredData.length - 100} more rows
+                            ... {sortedData.length - 100} more rows
                         </div>
                     )}
                 </div>
