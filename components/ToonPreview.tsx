@@ -14,14 +14,14 @@ const Highlight: React.FC<{ text: string; term: string; className?: string }> = 
     <span className={className}>
       {parts.map((part, i) => 
         part.toLowerCase() === term.toLowerCase() 
-          ? <span key={i} className="bg-yellow-900/80 text-yellow-50 font-bold px-0.5 rounded-[1px]">{part}</span> 
+          ? <span key={i} className="bg-yellow-900/60 text-yellow-200 font-bold px-0.5 rounded-[1px] border border-yellow-700/50">{part}</span> 
           : part
       )}
     </span>
   );
 };
 
-// --- Helper: Check deep match for auto-expansion ---
+// --- Helper: Check deep match ---
 const hasDeepMatch = (data: any, term: string): boolean => {
   if (!term) return false;
   const t = term.toLowerCase();
@@ -47,106 +47,118 @@ interface DataNodeProps {
 }
 
 const DataNode: React.FC<DataNodeProps> = ({ data, label, depth, searchTerm, expandAction }) => {
-  const [expanded, setExpanded] = useState(depth < 1); // Default open only root
-  const [hover, setHover] = useState(false);
+  const [expanded, setExpanded] = useState(depth < 1);
 
-  // Derived State
+  // Type Detection
   const isArray = Array.isArray(data);
   const isObject = typeof data === 'object' && data !== null && !isArray;
   const isEmpty = (isArray && data.length === 0) || (isObject && Object.keys(data).length === 0);
   
-  // Uniform Array Detection
+  // Uniform Array Detection (for table view)
   const isUniform = isArray && data.length > 0 && 
     typeof data[0] === 'object' && 
     data[0] !== null && 
     !Array.isArray(data[0]);
 
-  // Search Logic
+  // Search Matching
   const selfMatch = label ? label.toLowerCase().includes(searchTerm.toLowerCase()) : false;
   const primitiveMatch = !isObject && !isArray && String(data).toLowerCase().includes(searchTerm.toLowerCase());
   const containsMatch = useMemo(() => 
     searchTerm ? hasDeepMatch(data, searchTerm) : false
   , [data, searchTerm]);
 
-  // Effects
+  // Handle Expansion logic
   useEffect(() => {
-    if (searchTerm && (selfMatch || primitiveMatch || containsMatch)) {
-      setExpanded(true);
-    } else if (!searchTerm && expandAction) {
-      setExpanded(expandAction.type === 'expand');
+    if (expandAction) {
+        setExpanded(expandAction.type === 'expand');
     }
-  }, [searchTerm, expandAction, selfMatch, primitiveMatch, containsMatch]);
+  }, [expandAction]);
+
+  useEffect(() => {
+      if (searchTerm && (selfMatch || primitiveMatch || containsMatch)) {
+          setExpanded(true);
+      }
+  }, [searchTerm, selfMatch, primitiveMatch, containsMatch]);
 
   const toggle = (e: React.MouseEvent) => {
     e.stopPropagation();
     setExpanded(!expanded);
   };
 
-  if (depth > 20) return <div className="text-zinc-800 text-[10px] pl-4">...depth limit...</div>;
+  if (depth > 50) return <div className="text-red-500 text-[10px] pl-4 border-l border-red-900">Max Depth Exceeded</div>;
+
+  // Styling for tree lines
+  const indentClass = "ml-3 pl-3";
+  const borderClass = "border-l border-zinc-800";
 
   // --- RENDER: Uniform Table ---
   if (isUniform) {
-    // Filter rows for search
     const filteredData = searchTerm 
         ? data.filter((row: any) => Object.values(row).some(v => String(v).toLowerCase().includes(searchTerm.toLowerCase())))
         : data;
     
+    if (searchTerm && filteredData.length === 0 && !selfMatch) return null;
+
     const keys = Object.keys(data[0]);
-    
-    if (searchTerm && filteredData.length === 0 && !selfMatch) return null; // Hide if no matches in table or label
 
     return (
-      <div className="my-1 pl-4 border-l border-zinc-800/50 hover:border-zinc-700 transition-colors relative group">
+      <div className={`relative ${depth > 0 ? indentClass : ''} ${depth > 0 ? borderClass : ''} group/node`}>
+        {/* Node Header */}
         <div 
-          className="flex items-center gap-2 cursor-pointer py-1 select-none"
-          onClick={toggle}
-          onMouseEnter={() => setHover(true)}
-          onMouseLeave={() => setHover(false)}
+            className="flex items-center gap-2 py-1 cursor-pointer hover:bg-zinc-900/30 select-none -ml-3 pl-3 transition-colors"
+            onClick={toggle}
         >
-           <span className={`text-[10px] font-mono transition-transform duration-200 text-zinc-500 ${expanded ? 'rotate-90' : ''} ${hover ? 'text-white' : ''}`}>▶</span>
-           {label && <Highlight text={label} term={searchTerm} className="text-[10px] font-mono text-zinc-400 group-hover:text-zinc-300" />}
-           <span className="text-[9px] font-mono text-zinc-600 uppercase tracking-wider bg-zinc-900 px-1 rounded border border-zinc-800">
-             Table [{filteredData.length !== data.length ? `${filteredData.length}/${data.length}` : data.length}]
-           </span>
+            <span className="w-3 h-3 flex items-center justify-center text-[9px] text-zinc-600 group-hover/node:text-zinc-400 font-mono">
+                {expanded ? '▼' : '▶'}
+            </span>
+            
+            {label && (
+               <span className="text-[11px] font-mono text-zinc-500">
+                  <Highlight text={label} term={searchTerm} />
+                  <span className="text-zinc-600 mx-1">:</span>
+               </span>
+            )}
+            
+            <span className="text-[9px] font-mono text-cyan-700 border border-cyan-900/30 bg-cyan-950/10 px-1 rounded">
+                TABLE [{filteredData.length !== data.length ? `${filteredData.length}/${data.length}` : data.length}]
+            </span>
         </div>
 
+        {/* Table View */}
         {expanded && (
-          <div className="overflow-x-auto mt-1 border border-zinc-800 bg-zinc-950/50">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr>
-                  <th className="px-3 py-2 text-[9px] font-mono text-zinc-500 font-bold border-b border-zinc-800 bg-zinc-900/30">#</th>
-                  {keys.map(k => (
-                    <th key={k} className="px-3 py-2 text-[9px] font-mono text-zinc-400 font-normal uppercase border-b border-l border-zinc-800 bg-zinc-900/30 whitespace-nowrap">
-                        <Highlight text={k} term={searchTerm} />
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredData.slice(0, 50).map((row: any, i: number) => (
-                  <tr key={i} className="hover:bg-white/5 transition-colors group/row">
-                    <td className="px-3 py-1 text-[10px] font-mono text-zinc-600 border-b border-zinc-800/50">{i}</td>
-                    {keys.map(k => (
-                      <td key={k} className="px-3 py-1 text-[10px] font-mono text-zinc-300 border-b border-l border-zinc-800/50 truncate max-w-[200px]">
-                         {typeof row[k] === 'object' 
-                            ? <span className="text-zinc-600 italic">{'{...}'}</span> 
-                            : <Highlight text={String(row[k])} term={searchTerm} />
-                         }
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-                {filteredData.length > 50 && (
-                    <tr>
-                        <td colSpan={keys.length + 1} className="px-3 py-2 text-[9px] text-zinc-600 text-center italic bg-zinc-900/20">
-                            ... {filteredData.length - 50} more items
-                        </td>
-                    </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+             <div className="mt-1 mb-2 overflow-x-auto border-l border-zinc-800 ml-[5px] pl-3">
+                <div className="border border-zinc-800 bg-black/40 inline-block min-w-full">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr>
+                                <th className="px-2 py-1 text-[9px] font-mono text-zinc-500 border-b border-zinc-800 bg-zinc-900/50">#</th>
+                                {keys.map(k => (
+                                    <th key={k} className="px-2 py-1 text-[9px] font-mono text-zinc-400 border-b border-l border-zinc-800 bg-zinc-900/50 whitespace-nowrap">
+                                        <Highlight text={k} term={searchTerm} />
+                                    </th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredData.slice(0, 100).map((row: any, idx: number) => (
+                                <tr key={idx} className="hover:bg-zinc-900/30 transition-colors group/row">
+                                    <td className="px-2 py-0.5 text-[10px] font-mono text-zinc-600 border-b border-zinc-800/30">{idx}</td>
+                                    {keys.map(k => (
+                                        <td key={k} className="px-2 py-0.5 text-[10px] font-mono text-zinc-300 border-b border-l border-zinc-800/30 max-w-[200px] truncate">
+                                            {typeof row[k] === 'object' ? '...' : <Highlight text={String(row[k])} term={searchTerm} />}
+                                        </td>
+                                    ))}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                    {filteredData.length > 100 && (
+                        <div className="px-2 py-1 text-[9px] text-zinc-600 italic text-center bg-zinc-900/20">
+                            ... {filteredData.length - 100} more rows
+                        </div>
+                    )}
+                </div>
+             </div>
         )}
       </div>
     );
@@ -154,58 +166,58 @@ const DataNode: React.FC<DataNodeProps> = ({ data, label, depth, searchTerm, exp
 
   // --- RENDER: Object / Generic Array ---
   if (isObject || isArray) {
-    if (searchTerm && !selfMatch && !containsMatch) return null; // Hide structure if no deep match
+    if (searchTerm && !selfMatch && !containsMatch) return null;
 
-    const typeLabel = isArray ? `Array(${data.length})` : `Object`;
+    const typeLabel = isArray ? `Array(${data.length})` : 'Object';
     
     return (
-      <div className="my-0.5 pl-4 border-l border-zinc-800/50 hover:border-zinc-700 transition-colors relative group">
-        <div 
-          className="flex items-center gap-2 cursor-pointer py-0.5 select-none"
-          onClick={toggle}
-        >
-           <div className={`w-3 h-3 flex items-center justify-center transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}>
-             <span className="text-[8px] text-zinc-500">▶</span>
-           </div>
-           
-           {label && (
-               <>
-                <Highlight text={label} term={searchTerm} className="text-[11px] font-mono text-zinc-400 group-hover:text-zinc-200 transition-colors" />
-                <span className="text-[11px] font-mono text-zinc-600 mr-1">:</span>
-               </>
-           )}
-           
-           <span className="text-[9px] font-mono text-zinc-600 group-hover:text-zinc-500">
-              {isEmpty ? (isArray ? '[]' : '{}') : typeLabel}
-           </span>
-        </div>
+      <div className={`relative ${depth > 0 ? indentClass : ''} ${depth > 0 ? borderClass : ''} group/node`}>
+          <div 
+            className="flex items-center gap-2 py-0.5 cursor-pointer hover:bg-zinc-900/30 select-none -ml-3 pl-3 transition-colors"
+            onClick={toggle}
+          >
+            <span className="w-3 h-3 flex items-center justify-center text-[9px] text-zinc-600 group-hover/node:text-zinc-400 font-mono">
+                {expanded ? '▼' : '▶'}
+            </span>
+            
+            {label && (
+               <span className="text-[11px] font-mono text-zinc-500 group-hover/node:text-zinc-300 transition-colors">
+                  <Highlight text={label} term={searchTerm} />
+                  <span className="text-zinc-600 mx-1">:</span>
+               </span>
+            )}
+            
+            <span className="text-[9px] font-mono text-zinc-600">
+               {isEmpty ? (isArray ? '[]' : '{}') : typeLabel}
+            </span>
+          </div>
 
-        {expanded && !isEmpty && (
-           <div className="transition-all duration-200">
-              {isArray 
-                 ? data.map((item: any, i: number) => (
-                    <DataNode 
-                        key={i} 
-                        data={item} 
-                        label={String(i)} 
-                        depth={depth + 1} 
-                        searchTerm={searchTerm}
-                        expandAction={expandAction}
-                    />
-                 ))
-                 : Object.entries(data).map(([k, v]) => (
-                    <DataNode 
-                        key={k} 
-                        data={v} 
-                        label={k} 
-                        depth={depth + 1} 
-                        searchTerm={searchTerm}
-                        expandAction={expandAction}
-                    />
-                 ))
-              }
-           </div>
-        )}
+          {expanded && !isEmpty && (
+              <div className=""> 
+                 {isArray 
+                   ? data.map((item: any, i: number) => (
+                       <DataNode 
+                         key={i} 
+                         data={item} 
+                         label={String(i)} 
+                         depth={depth + 1} 
+                         searchTerm={searchTerm} 
+                         expandAction={expandAction}
+                       />
+                   ))
+                   : Object.entries(data).map(([k, v]) => (
+                       <DataNode 
+                         key={k} 
+                         data={v} 
+                         label={k} 
+                         depth={depth + 1} 
+                         searchTerm={searchTerm} 
+                         expandAction={expandAction}
+                       />
+                   ))
+                 }
+              </div>
+          )}
       </div>
     );
   }
@@ -213,27 +225,50 @@ const DataNode: React.FC<DataNodeProps> = ({ data, label, depth, searchTerm, exp
   // --- RENDER: Primitive ---
   if (searchTerm && !selfMatch && !primitiveMatch) return null;
 
+  // Type coloring
   let valueColor = "text-zinc-300";
-  if (typeof data === 'number') valueColor = "text-blue-200";
-  if (typeof data === 'boolean') valueColor = "text-purple-300";
-  if (data === null) valueColor = "text-zinc-600 italic";
-  if (typeof data === 'string') valueColor = "text-green-100/80";
+  let typeIndicator = "";
+  
+  if (typeof data === 'number') {
+      valueColor = "text-blue-400";
+      typeIndicator = "num";
+  }
+  else if (typeof data === 'boolean') {
+      valueColor = "text-purple-400";
+      typeIndicator = "bool";
+  }
+  else if (data === null) {
+      valueColor = "text-red-900/50 italic";
+      typeIndicator = "null";
+  }
+  else if (typeof data === 'string') {
+      valueColor = "text-emerald-100/70";
+      typeIndicator = "str";
+  }
 
   return (
-    <div className="flex items-baseline gap-2 pl-4 py-0.5 border-l border-transparent hover:border-zinc-800 hover:bg-zinc-900/30 transition-colors -ml-[1px] select-text">
-       {label && (
-           <div className="whitespace-nowrap">
-                <Highlight text={label} term={searchTerm} className="text-[11px] font-mono text-zinc-500 select-none" />
-                <span className="text-[11px] font-mono text-zinc-600 select-none">:</span>
-           </div>
-       )}
-       <span className={`text-[11px] font-mono break-all ${valueColor}`}>
-         {typeof data === 'string' 
-            ? <>"<Highlight text={data} term={searchTerm} />"</>
-            : <Highlight text={String(data)} term={searchTerm} />
-         }
-       </span>
-    </div>
+     <div className={`relative ${depth > 0 ? indentClass : ''} ${depth > 0 ? borderClass : ''} flex items-center hover:bg-zinc-900/30 py-0.5 pl-3 -ml-3 transition-colors group/leaf`}>
+         {/* Visual tick for leaf node */}
+         <div className="absolute left-0 top-1/2 w-2.5 h-[1px] bg-zinc-800 -ml-2.5"></div>
+         
+         {label && (
+             <span className="text-[11px] font-mono text-zinc-500 whitespace-nowrap mr-2 z-10">
+                 <Highlight text={label} term={searchTerm} />:
+             </span>
+         )}
+         
+         <span className={`text-[11px] font-mono break-all z-10 ${valueColor}`}>
+            {typeof data === 'string' 
+                ? <>"<Highlight text={data} term={searchTerm} />"</> 
+                : <Highlight text={String(data)} term={searchTerm} />
+            }
+         </span>
+         
+         {/* Type Badge on hover */}
+         <span className="ml-2 text-[7px] text-zinc-700 uppercase tracking-wider opacity-0 group-hover/leaf:opacity-100 transition-opacity select-none border border-zinc-800 px-1 rounded bg-black">
+             {typeIndicator}
+         </span>
+     </div>
   );
 };
 
@@ -254,25 +289,71 @@ export const ToonPreview: React.FC<DataVisualizerProps> = ({ data }) => {
                  Data Topology
              </h2>
              <div className="flex gap-2">
-                <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
-                <span className="w-1.5 h-1.5 bg-purple-500 rounded-full"></span>
+                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
+                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse delay-75"></span>
+                <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-pulse delay-150"></span>
              </div>
           </div>
           
           <div className="flex gap-2">
               <div className="relative flex-grow group">
                   <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
-                      <span className="text-zinc-600 text-xs group-focus-within:text-zinc-400">/</span>
+                      <span className="text-zinc-600 text-xs group-focus-within:text-zinc-400 transition-colors">/</span>
                   </div>
                   <input 
                     type="text" 
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Filter nodes..."
-                    className="w-full bg-zinc-900/50 border border-zinc-800 text-zinc-300 text-[10px] font-mono rounded-sm py-1.5 pl-6 pr-2 focus:outline-none focus:border-zinc-600 focus:bg-zinc-900 placeholder-zinc-700 uppercase tracking-wide"
+                    placeholder="FILTER NODES..."
+                    className="w-full bg-zinc-900/30 border border-zinc-800 text-zinc-300 text-[10px] font-mono rounded-sm py-1.5 pl-6 pr-2 focus:outline-none focus:border-zinc-600 focus:bg-zinc-900 placeholder-zinc-700 uppercase tracking-wide transition-all"
                   />
                   {searchTerm && (
                       <button 
                         onClick={() => setSearchTerm("")}
-                        className="absolute inset-y-0 right-0 pr-2 flex items-center text-zinc-600 hover:text-zinc-30
+                        className="absolute inset-y-0 right-0 pr-2 flex items-center text-zinc-600 hover:text-zinc-300"
+                      >
+                          ×
+                      </button>
+                  )}
+              </div>
+              <button 
+                onClick={() => triggerExpand('expand')}
+                className="px-3 py-1 border border-zinc-800 text-zinc-500 hover:text-zinc-200 hover:border-zinc-600 hover:bg-zinc-900 text-[9px] font-mono uppercase tracking-wider transition-all"
+                title="Expand All"
+              >
+                Exp
+              </button>
+              <button 
+                onClick={() => triggerExpand('collapse')}
+                className="px-3 py-1 border border-zinc-800 text-zinc-500 hover:text-zinc-200 hover:border-zinc-600 hover:bg-zinc-900 text-[9px] font-mono uppercase tracking-wider transition-all"
+                title="Collapse All"
+              >
+                Col
+              </button>
+          </div>
+       </div>
+
+       {/* Tree View */}
+       <div className="flex-grow overflow-auto p-6 custom-scrollbar bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9IiMxYTFhMWEiIG9wYWNpdHk9IjAuMyIvPjwvc3ZnPg==')]">
+         {data ? (
+            <div className="animate-in fade-in duration-500 pl-1">
+              <DataNode 
+                data={data} 
+                label="ROOT" 
+                depth={0} 
+                searchTerm={searchTerm}
+                expandAction={expandAction}
+              />
+              <div className="mt-8 pt-4 border-t border-zinc-900 ml-4 text-center opacity-50">
+                 <span className="text-[9px] font-mono text-zinc-700 uppercase tracking-widest">End of Stream</span>
+              </div>
+            </div>
+         ) : (
+           <div className="h-full flex items-center justify-center text-zinc-800 text-xs font-mono uppercase tracking-widest">
+              No Data Stream
+           </div>
+         )}
+       </div>
+    </div>
+  );
+};
