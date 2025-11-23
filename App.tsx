@@ -20,8 +20,23 @@ const App: React.FC = () => {
   const [headerCopyStatus, setHeaderCopyStatus] = useState<'idle' | 'copied'>('idle');
   const [jsonCopyStatus, setJsonCopyStatus] = useState<'idle' | 'copied'>('idle');
 
+  // Input Validation State
+  const [validationStatus, setValidationStatus] = useState<'valid' | 'empty' | 'short'>('valid');
+
+  // Effect to validate input in real-time
+  React.useEffect(() => {
+    const trimmed = prompt.trim();
+    if (!trimmed) {
+      setValidationStatus('empty');
+    } else if (trimmed.length < 10) {
+      setValidationStatus('short');
+    } else {
+      setValidationStatus('valid');
+    }
+  }, [prompt]);
+
   const handleGenerate = useCallback(async () => {
-    if (!prompt.trim()) return;
+    if (validationStatus !== 'valid') return;
     
     setStatus('loading');
     setErrorMsg(null);
@@ -54,12 +69,14 @@ const App: React.FC = () => {
       setIsVerified(verified);
       setStatus('success');
       setViewMode('toon'); 
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setErrorMsg("Generation Failed. System Malfunction.");
+      // Use the specific error message from the service or fallback
+      const message = err instanceof Error ? err.message : "Generation Failed. System Malfunction.";
+      setErrorMsg(message);
       setStatus('error');
     }
-  }, [prompt]);
+  }, [prompt, validationStatus]);
 
   const handleHeaderCopy = () => {
     if (!toonString) return;
@@ -84,6 +101,46 @@ const App: React.FC = () => {
     setStats(null);
     setErrorMsg(null);
     setIsVerified(false);
+  };
+
+  const handleExport = (format: 'toon' | 'json' | 'md' | 'txt') => {
+    if (!toonString || !jsonString) return;
+    
+    let content = "";
+    let filename = "generated_data";
+    let mimeType = "text/plain";
+
+    const timestamp = new Date().toISOString().slice(0,10);
+
+    switch (format) {
+        case 'toon':
+            content = toonString;
+            filename = `toon_data_${timestamp}.toon`;
+            break;
+        case 'json':
+            content = jsonString;
+            filename = `data_${timestamp}.json`;
+            mimeType = "application/json";
+            break;
+        case 'md':
+            content = `# TOON Data Export\n\n## TOON Format\n\`\`\`toon\n${toonString}\n\`\`\`\n\n## JSON Source\n\`\`\`json\n${jsonString}\n\`\`\``;
+            filename = `toon_export_${timestamp}.md`;
+            break;
+        case 'txt':
+            content = toonString;
+            filename = `toon_data_${timestamp}.txt`;
+            break;
+    }
+
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -131,7 +188,7 @@ const App: React.FC = () => {
         <div className="w-full lg:w-[400px] flex-none flex flex-col border-r border-zinc-800 bg-[#030303] relative">
           
           {/* Prompt Area */}
-          <div className="flex-grow flex flex-col">
+          <div className="flex-grow flex flex-col relative">
              <div className="flex-none p-4 border-b border-zinc-900 flex justify-between items-end">
                 <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">Input Matrix</span>
                 <button 
@@ -148,24 +205,38 @@ const App: React.FC = () => {
                placeholder="// Describe your data structure..."
                spellCheck={false}
              />
+             
+             {/* Validation Bar */}
+             <div className={`flex-none h-1 w-full transition-colors duration-300
+               ${validationStatus === 'valid' ? 'bg-zinc-800' : 
+                 validationStatus === 'short' ? 'bg-yellow-900' : 'bg-red-900'}
+             `}></div>
+             
+             <div className="flex-none px-4 py-1 text-[9px] font-mono text-right uppercase tracking-wider h-6">
+                {validationStatus === 'short' && <span className="text-yellow-600">Input too short for meaningful generation</span>}
+                {validationStatus === 'empty' && <span className="text-zinc-700">Waiting for input...</span>}
+                {validationStatus === 'valid' && <span className="text-zinc-600">Input Validated</span>}
+             </div>
           </div>
 
           {/* Action Area */}
           <div className="flex-none p-6 border-t border-zinc-800 bg-black">
              <button
                onClick={handleGenerate}
-               disabled={status === 'loading' || !prompt}
+               disabled={status === 'loading' || validationStatus !== 'valid'}
                className={`w-full h-12 flex items-center justify-center font-mono text-xs font-bold tracking-[0.2em] uppercase border transition-all duration-200 relative overflow-hidden group
                  ${status === 'loading' 
                    ? 'border-zinc-800 text-zinc-600 cursor-wait' 
-                   : 'border-zinc-700 text-white hover:border-white hover:bg-white hover:text-black'}`}
+                   : validationStatus !== 'valid'
+                      ? 'border-zinc-800 text-zinc-700 cursor-not-allowed opacity-50'
+                      : 'border-zinc-700 text-white hover:border-white hover:bg-white hover:text-black'}`}
              >
                <span className="relative z-10">{status === 'loading' ? 'PROCESSING STREAM' : 'INITIATE SEQUENCE'}</span>
              </button>
              
              {errorMsg && (
-               <div className="mt-4 p-3 border border-red-900/50 bg-red-950/10 text-red-500 text-[10px] font-mono uppercase tracking-wide text-center">
-                 Error: {errorMsg}
+               <div className="mt-4 p-3 border border-red-900/50 bg-red-950/10 text-red-500 text-[10px] font-mono uppercase tracking-wide text-center animate-pulse">
+                 > ERROR: {errorMsg}
                </div>
              )}
 
@@ -211,25 +282,58 @@ const App: React.FC = () => {
           <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9IiMxYTFhMWEiLz48L3N2Zz4=')] opacity-20 pointer-events-none"></div>
           
           {/* Toolbar */}
-          <div className="flex-none h-12 border-b border-zinc-800 flex items-center px-4 gap-8 bg-black/80 backdrop-blur-sm z-10">
-             <button 
-               onClick={() => setViewMode('toon')}
-               className={`h-full flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest transition-colors border-b-2 ${viewMode === 'toon' ? 'border-white text-white' : 'border-transparent text-zinc-600 hover:text-zinc-400'}`}
-             >
-               TOON Output
-             </button>
-             <button 
-               onClick={() => setViewMode('json')}
-               className={`h-full flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest transition-colors border-b-2 ${viewMode === 'json' ? 'border-white text-white' : 'border-transparent text-zinc-600 hover:text-zinc-400'}`}
-             >
-               Raw JSON
-             </button>
-             <button 
-               onClick={() => setViewMode('visual')}
-               className={`h-full flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest transition-colors border-b-2 ${viewMode === 'visual' ? 'border-white text-white' : 'border-transparent text-zinc-600 hover:text-zinc-400'}`}
-             >
-               Structure Map
-             </button>
+          <div className="flex-none h-12 border-b border-zinc-800 flex items-center justify-between px-4 bg-black/80 backdrop-blur-sm z-10">
+             <div className="flex items-center gap-8 h-full">
+                <button 
+                  onClick={() => setViewMode('toon')}
+                  className={`h-full flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest transition-colors border-b-2 ${viewMode === 'toon' ? 'border-white text-white' : 'border-transparent text-zinc-600 hover:text-zinc-400'}`}
+                >
+                  TOON Output
+                </button>
+                <button 
+                  onClick={() => setViewMode('json')}
+                  className={`h-full flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest transition-colors border-b-2 ${viewMode === 'json' ? 'border-white text-white' : 'border-transparent text-zinc-600 hover:text-zinc-400'}`}
+                >
+                  Raw JSON
+                </button>
+                <button 
+                  onClick={() => setViewMode('visual')}
+                  className={`h-full flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest transition-colors border-b-2 ${viewMode === 'visual' ? 'border-white text-white' : 'border-transparent text-zinc-600 hover:text-zinc-400'}`}
+                >
+                  Structure Map
+                </button>
+             </div>
+
+             {/* Export Controls */}
+             {status === 'success' && (
+                <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-mono text-zinc-600 uppercase tracking-widest hidden sm:inline mr-2">Export ::</span>
+                    <button 
+                      onClick={() => handleExport('toon')}
+                      className="text-[9px] font-mono text-zinc-500 hover:text-white border border-zinc-800 hover:border-zinc-500 bg-zinc-900/50 px-2 py-1 rounded transition-colors uppercase"
+                    >
+                      .TOON
+                    </button>
+                    <button 
+                      onClick={() => handleExport('json')}
+                      className="text-[9px] font-mono text-zinc-500 hover:text-white border border-zinc-800 hover:border-zinc-500 bg-zinc-900/50 px-2 py-1 rounded transition-colors uppercase"
+                    >
+                      .JSON
+                    </button>
+                    <button 
+                      onClick={() => handleExport('md')}
+                      className="text-[9px] font-mono text-zinc-500 hover:text-white border border-zinc-800 hover:border-zinc-500 bg-zinc-900/50 px-2 py-1 rounded transition-colors uppercase"
+                    >
+                      .MD
+                    </button>
+                     <button 
+                      onClick={() => handleExport('txt')}
+                      className="text-[9px] font-mono text-zinc-500 hover:text-white border border-zinc-800 hover:border-zinc-500 bg-zinc-900/50 px-2 py-1 rounded transition-colors uppercase"
+                    >
+                      .TXT
+                    </button>
+                </div>
+             )}
           </div>
 
           {/* Content Area */}
