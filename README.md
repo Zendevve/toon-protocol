@@ -1,20 +1,21 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# TOON Protocol Interface
 
-# Run and deploy your AI Studio app
+A futuristic, brutalist web interface for generating and visualizing Token-Oriented Object Notation (TOON) data. This tool aids developers in creating token-efficient datasets for LLM interactions.
 
-This contains everything you need to run your app locally.
+## Capabilities
 
-View your app in AI Studio: https://ai.studio/apps/drive/1WLQ2yuH3H-F5GeD2Zgi7gShcwpI3G1kG
+- **Synthetic Data Generation**: Utilizes the Gemini API to generate structured datasets from natural language.
+- **TOON Encoder/Decoder**: specific implementation of the TOON specification for encoding JSON and decoding TOON streams.
+- **Deep Visualization**: Interactive "Data Topology" map allowing inspection of nested structures and tabular data.
+- **Token Analytics**: Real-time stats showing compression rates between JSON and TOON.
+- **Export**: Supports .toon, .json, .md, and .txt exports.
 
-## Run Locally
+## Architecture
 
-**Prerequisites:**  Node.js
+- **Frontend**: React 19, Tailwind CSS
+- **Typography**: Space Grotesk (UI), Space Mono (Code)
+- **AI Engine**: Google GenAI SDK (Gemini 2.5 Flash)
 
+## Usage
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+Enter a prompt in the input matrix (e.g., "A dataset of cyberpunk inventory items") and initiate the sequence to generate data. Use the toggle views to inspect the output formats and verify structural integrity via the visualizer.
